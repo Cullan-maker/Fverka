@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Polisens Förverkandeguide</title>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel for in-browser JSX compilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            blue: '#004b87',
+                            yellow: '#f3c114'
+                        },
+                        pdf: {
+                            red: '#ef4444',
+                            pink: '#ec4899',
+                            green: '#84cc16'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            background-color: #f3f4f6;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .animate-slide-up {
+            animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Custom scrollbar for clean look */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // SVG Icons
+        const IconPolice = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-6 h-6 text-brand-yellow">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                <circle cx="12" cy="11" r="3"></circle>
+            </svg>
+        );
+
+        const IconBack = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+        );
+
+        const IconCheck = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-12 h-12 text-green-500 mx-auto">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+        );
+
+        // Core App Component
+        const App = () => {
+            const [answers, setAnswers] = useState({});
+            const [history, setHistory] = useState([]);
+
+            const handleAnswer = (key, value) => {
+                setAnswers(prev => ({ ...prev, [key]: value }));
+                setHistory(prev => [...prev, key]);
+            };
+
+            const handleBack = () => {
+                if (history.length === 0) return;
+                const newHistory = [...history];
+                const lastKey = newHistory.pop();
+                
+                setHistory(newHistory);
+                setAnswers(prev => {
+                    const newAnswers = { ...prev };
+                    delete newAnswers[lastKey];
+                    return newAnswers;
+                });
+            };
+
+            const handleReset = () => {
+                setAnswers({});
+                setHistory([]);
+            };
+
+            // Logical Engine based on Flowchart
+            const currentStep = useMemo(() => {
+                // START
+                if (answers.under20 === undefined) return { type: 'q', key: 'under20', text: 'Är personen under 20 år gammal?' };
+
+                // Path: ÖVER 20 ÅR (NEJ)
+                if (answers.under20 === false) {
+                    if (answers.inArea === undefined) return { type: 'q', key: 'inArea', text: 'Befinner sig personen inom förbjudet område enligt lokal ordningsföreskrift?' };
+                    if (answers.inArea === false) return { type: 'r', id: 'INGET_BROTT' };
+                    
+                    if (answers.drinking === undefined) return { type: 'q', key: 'drinking', text: 'Iakttar polisen personen dricka?' };
+                    if (answers.drinking === false) return { type: 'r', id: 'INGET_BROTT' };
+                    
+                    return { type: 'r', id: 'BROTT_LOKAL_OVER20' };
+                }
+
+                // Path: UNDER 20 ÅR (JA)
+                if (answers.under20 === true) {
+                    if (answers.inArea === undefined) return { type: 'q', key: 'inArea', text: 'Befinner sig personen inom förbjudet område enligt lokal ordningsföreskrift?' };
+
+                    if (answers.inArea === true && answers.drinking === undefined) {
+                        return { type: 'q', key: 'drinking', text: 'Iakttar polisen personen dricka?' };
+                    }
+
+                    const isDrinkingInArea = answers.inArea === true && answers.drinking === true;
+
+                    if (isDrinkingInArea && answers.under15 === undefined) {
+                        return { type: 'q', key: 'under15', text: 'Brott mot lokal föreskrift konstaterat. Är personen under 15 år gammal?' };
+                    }
+
+                    const needsExplanation = (answers.inArea === false || answers.drinking === false);
+
+                    if (needsExplanation && answers.credible === undefined) {
+                        return { type: 'q', key: 'credible', text: 'Har personen en trovärdig, laglig förklaring, som kan styrkas, om varför han/hon har alkohol med sig?' };
+                    }
+
+                    if (needsExplanation && answers.credible === true) {
+                        return { type: 'r', id: 'INGET_BROTT' };
+                    }
+
+                    // BROTT MOT ALKOHOLLAGEN Path (reached if drinking in area, or no credible explanation)
+                    if (answers.suspects === undefined) {
+                        return { type: 'q', key: 'suspects', text: 'Vi utreder brott mot alkohollagen. Fråga om vem han/hon fick alkohol ifrån. Finns det misstänkta?' };
+                    }
+
+                    if (answers.suspects === true) {
+                        return { type: 'r', id: 'BROTT_ALKOHOL_SUSPECTS' };
+                    }
+
+                    if (answers.suspects === false) {
+                        if (answers.over18 === undefined) {
+                            return { type: 'q', key: 'over18', text: 'Är personen över 18 år?' };
+                        }
+                        return { type: 'r', id: 'BROTT_ALKOHOL_NO_SUSPECTS' };
+                    }
+                }
+            }, [answers]);
+
+            return (
+                <div className="min-h-screen flex justify-center bg-gray-100 font-sans text-gray-800">
+                    <div className="w-full max-w-md bg-white shadow-xl flex flex-col relative overflow-hidden">
+                        
+                        {/* Header */}
+                        <header className="bg-brand-blue text-white p-4 flex items-center justify-between z-10 shadow-md">
+                            <div className="flex items-center space-x-2">
+                                <IconPolice />
+                                <h1 className="font-semibold text-lg tracking-wide">Förverkandeguide</h1>
+                            </div>
+                            {history.length > 0 && currentStep.type === 'q' && (
+                                <button onClick={handleBack} className="p-2 -mr-2 bg-white/10 rounded-full hover:bg-white/20 transition active:scale-95 flex items-center justify-center">
+                                    <IconBack />
+                                </button>
+                            )}
+                        </header>
+
+                        {/* Content Area */}
+                        <main className="flex-1 overflow-y-auto p-5 relative">
+                            {currentStep.type === 'q' ? (
+                                <QuestionView 
+                                    key={currentStep.key} // Forces animation re-trigger on new question
+                                    question={currentStep} 
+                                    onAnswer={handleAnswer} 
+                                />
+                            ) : (
+                                <ResultView 
+                                    resultId={currentStep.id} 
+                                    answers={answers} 
+                                    onReset={handleReset} 
+                                />
+                            )}
+                        </main>
+                        
+                    </div>
+                </div>
+            );
+        };
+
+        // Component for asking questions
+        const QuestionView = ({ question, onAnswer }) => {
+            return (
+                <div className="animate-slide-up flex flex-col h-full justify-center">
+                    <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6 shadow-sm mb-8 text-center">
+                        <p className="text-xl font-medium text-brand-blue leading-relaxed">
+                            {question.text}
+                        </p>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mt-auto">
+                        <button 
+                            onClick={() => onAnswer(question.key, true)}
+                            className="bg-brand-blue text-white text-lg font-semibold py-4 rounded-xl shadow-md hover:bg-blue-800 active:scale-95 transition-all"
+                        >
+                            JA
+                        </button>
+                        <button 
+                            onClick={() => onAnswer(question.key, false)}
+                            className="bg-white border-2 border-brand-blue text-brand-blue text-lg font-semibold py-4 rounded-xl shadow-sm hover:bg-blue-50 active:scale-95 transition-all"
+                        >
+                            NEJ
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // Component for showing final results based on PDF logic
+        const ResultView = ({ resultId, answers, onReset }) => {
+            const isDrinkingInArea = answers.inArea === true && answers.drinking === true;
+            const getsFine = isDrinkingInArea && answers.under15 === false;
+            
+            let data = { title: '', crimes: [], actions: [], documentation: [] };
+
+            switch (resultId) {
+                case 'INGET_BROTT':
+                    return (
+                        <div className="animate-fade-in flex flex-col h-full items-center justify-center space-y-6 text-center">
+                            <IconCheck />
+                            <h2 className="text-3xl font-bold text-gray-800">Inget Brott</h2>
+                            <p className="text-gray-500 text-lg">Ingen ytterligare åtgärd krävs för denna person.</p>
+                            <button onClick={onReset} className="mt-8 bg-gray-200 text-gray-700 font-semibold py-3 px-8 rounded-full hover:bg-gray-300 transition-colors">
+                                Starta ny bedömning
+                            </button>
+                        </div>
+                    );
+                
+                case 'BROTT_LOKAL_OVER20':
+                    data.title = "Åtgärder vid Brott mot lokal föreskrift";
+                    data.crimes = ['Brott mot lokal föreskrift 11§ (Förtärt alkohol på allmän plats)'];
+                    data.actions = [
+                        'Direktförverka alkoholen på plats.',
+                        'Stöd av: Lag (1958:205) om förverkande av alkoholhaltiga drycker 1§.'
+                    ];
+                    data.documentation = [
+                        'Böter: 941A - 500 kr.',
+                        'Skriv "Tas i beslag för förverkande..." (precisera varuslag och mängd) i gärningsbeskrivningsrutan på böter.',
+                        'Lägg till texten "och förverkandet" i godkännanderutan.'
+                    ];
+                    break;
+
+                case 'BROTT_ALKOHOL_SUSPECTS':
+                    data.title = "Åtgärder vid Brott mot Alkohollagen";
+                    data.crimes = ['Brott mot alkohollagen (Olaglig alkoholförsäljning / Olovligt anskaffande)'];
+                    if (isDrinkingInArea) data.crimes.push('Brott mot lokal föreskrift 11§ (Förtärt alkohol på allmän plats)');
+                    
+                    data.actions = ['FU inleds - Normal rutin för beslag.', 'Alkohol i beslag.'];
+                    if (answers.under20) data.actions.push('Kontakta vårdnadshavaren om personen är 15, 16 eller 17 år.');
+
+                    if (getsFine) data.documentation.push('Böter: 941A - 500 kr (för förtäring på allmän plats).');
+                    data.documentation.push(
+                        'Skapa Anmälan: "Olaglig alkoholförsäljning"',
+                        'Plats: Aktuell plats.',
+                        'Fritext: Kort beskrivning av händelsen - tid, plats, typ av alkohol, om föräldrarna informerades samt om alkoholen förverkades. (OBS: Inget p-nr i fritexten).',
+                        'Vittne: Personen med alkoholen.',
+                        'Anmälare: Polismyndigheten (t.ex. i Kronobergs län).',
+                        'Misstänkt: Fyll i om det finns.',
+                        'Brottsrubricering: 5047 - lägg till ordet "langning" efter texten.',
+                        'Bifoga: Förverkande protokoll eller beslag.'
+                    );
+                    break;
+
+                case 'BROTT_ALKOHOL_NO_SUSPECTS':
+                    data.title = "Åtgärder vid Brott mot Alkohollagen";
+                    data.crimes = ['Brott mot alkohollagen (Olaglig alkoholförsäljning / Olovligt anskaffande)'];
+                    if (isDrinkingInArea) data.crimes.push('Brott mot lokal föreskrift 11§ (Förtärt alkohol på allmän plats)');
+                    
+                    data.actions = [
+                        'Direktförverka all alkohol på plats.',
+                        'Stöd av: Alkohollagen 12 kap 1§.'
+                    ];
+                    if (answers.under20) data.actions.push('Kontakta vårdnadshavaren om personen är 15, 16 eller 17 år.');
+
+                    if (getsFine) data.documentation.push('Böter: 941A - 500 kr (för förtäring på allmän plats).');
+                    data.documentation.push(
+                        'Inne på stationen: Upprätta Protokoll "Beslut om förverkande enl. lagen (2024:782) om förfarandet vid förverkande av egendom". Sök på "förverkande" i formulärportal.',
+                    );
+                    if (answers.over18) {
+                        data.documentation.push('Sidan 3 skickas hem till personen.');
+                    } else {
+                        data.documentation.push('Sidan 3 skickas hem till vårdnadshavaren.');
+                    }
+                    break;
+            }
+
+            return (
+                <div className="animate-slide-up pb-8 space-y-6">
+                    <h2 className="text-2xl font-bold text-gray-800 text-center mb-6">{data.title}</h2>
+                    
+                    {/* BROTT Section (Red Outline) */}
+                    {data.crimes.length > 0 && (
+                        <div className="border-2 border-pdf-red rounded-xl overflow-hidden shadow-sm bg-white">
+                            <div className="bg-red-50 text-pdf-red font-bold uppercase tracking-wider py-2 px-4 border-b-2 border-pdf-red flex items-center space-x-2">
+                                <span>Rättslig Grund (Brott)</span>
+                            </div>
+                            <ul className="p-4 space-y-2 text-gray-700">
+                                {data.crimes.map((item, i) => (
+                                    <li key={i} className="flex items-start">
+                                        <span className="text-pdf-red mr-2 font-bold">•</span> {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    {/* ATT GÖRA Section (Pink Outline) */}
+                    {data.actions.length > 0 && (
+                        <div className="border-2 border-pdf-pink rounded-xl overflow-hidden shadow-sm bg-white">
+                            <div className="bg-pink-50 text-pink-600 font-bold uppercase tracking-wider py-2 px-4 border-b-2 border-pdf-pink">
+                                Att Göra (På plats)
+                            </div>
+                            <ul className="p-4 space-y-2 text-gray-700">
+                                {data.actions.map((item, i) => (
+                                    <li key={i} className="flex items-start">
+                                        <span className="text-pdf-pink mr-2 font-bold">•</span> {item}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    {/* ATT SKRIVA Section (Green Outline) */}
+                    {data.documentation.length > 0 && (
+                        <div className="border-2 border-pdf-green rounded-xl overflow-hidden shadow-sm bg-white">
+                            <div className="bg-green-50 text-green-700 font-bold uppercase tracking-wider py-2 px-4 border-b-2 border-pdf-green">
+                                Att Skriva / Dokumentera
+                            </div>
+                            <ul className="p-4 space-y-3 text-gray-700">
+                                {data.documentation.map((item, i) => (
+                                    <li key={i} className="flex items-start bg-gray-50 p-2 rounded">
+                                        <span className="text-pdf-green mr-2 font-bold">✓</span> 
+                                        <span dangerouslySetInnerHTML={{ __html: item.replace(/(".*?")/g, '<strong>$1</strong>') }} />
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+
+                    <button 
+                        onClick={onReset}
+                        className="w-full mt-6 bg-brand-blue text-white font-semibold py-4 rounded-xl shadow-md hover:bg-blue-800 active:scale-95 transition-all"
+                    >
+                        Avsluta & Starta Ny
+                    </button>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
